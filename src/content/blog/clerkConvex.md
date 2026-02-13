@@ -62,13 +62,11 @@ heroImage: "/clerkConvex.png"
 | `svix`                      | ^1.84.1  | Webhook signature verification (validates Clerk webhooks)          |
 | `expo-secure-store`         | ~15.0.8  | Encrypted token storage on device                                  |
 | `expo-apple-authentication` | ~8.0.8   | Native Apple Sign-In button/flow (iOS)                             |
-| `expo-auth-session`         | ~7.0.10  | OAuth session handling                                             |
-| `expo-web-browser`          | ~15.0.9  | Opens browser for OAuth flows                                      |
 
 **Install command:**
 
 ```bash
-npx expo install @clerk/clerk-expo expo-secure-store expo-apple-authentication expo-auth-session expo-web-browser
+npx expo install @clerk/clerk-expo expo-secure-store expo-apple-authentication
 npm install @clerk/backend svix
 ```
 
@@ -831,11 +829,8 @@ import AuthProvider from "@/components/auth";
 
 export default function RootLayout() {
   return (
-    <KeyboardProvider>
+
       <AuthProvider>
-        <GestureHandlerRootView>
-          <HeroUINativeProvider>
-            <BottomSheetModalProvider>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="Auth/sign-in" />
@@ -843,11 +838,7 @@ export default function RootLayout() {
                 <Stack.Screen name="Auth/nickname" />
                 {/* ... game screens */}
               </Stack>
-            </BottomSheetModalProvider>
-          </HeroUINativeProvider>
-        </GestureHandlerRootView>
       </AuthProvider>
-    </KeyboardProvider>
   );
 }
 ```
@@ -897,6 +888,37 @@ const AuthenticatedContent = () => {
 
 1. **Clerk layer:** `isSignedIn` from `useAuth()` -- checks if user has a valid session.
 2. **App layer:** `hasCompletedOnboarding` from Convex query -- ensures user has set their nickname.
+   **Alternative approach -- Convex `Authenticated` / `Unauthenticated` components:**
+
+Instead of manually checking `isSignedIn` from Clerk's `useAuth()`, you can use Convex's built-in declarative components:
+
+```typescript
+import { Authenticated, Unauthenticated } from "convex/react";
+import { useQuery } from "convex/react";
+import { Redirect } from "expo-router";
+import { api } from "@/convex/_generated/api";
+
+const Index = () => {
+  return (
+    <>
+      <Unauthenticated>
+        <UnauthenticatedMenu />
+      </Unauthenticated>
+
+      <Authenticated>
+        <AuthenticatedContent />
+      </Authenticated>
+    </>
+  );
+};
+```
+
+Both approaches are functionally equivalent and **there is no race condition** between them. This is because `ConvexProviderWithClerk` already uses Clerk's `useAuth` internally to determine auth state -- so Convex's `<Authenticated>` / `<Unauthenticated>` and Clerk's `isSignedIn` are driven by the same underlying session state. Choose whichever style you prefer:
+
+| Approach                                                    | Style                             | When to use                                                                                        |
+| ----------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `useAuth()` from `@clerk/clerk-expo`                        | Imperative (hooks + conditionals) | When you need `isLoaded` for a custom loading state, or access to other Clerk hooks like `signOut` |
+| `<Authenticated>` / `<Unauthenticated>` from `convex/react` | Declarative (component wrappers)  | When you want cleaner JSX without conditional logic -- components simply render or don't           |
 
 ---
 
@@ -1098,8 +1120,6 @@ export function AppleSignInButton({ onSignInComplete }: AppleSignInButtonProps) 
           ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
           : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
       }
-      cornerRadius={20}
-      style={{ width: "100%", height: 55 }}
       onPress={handleAppleSignIn}
     />
   );
