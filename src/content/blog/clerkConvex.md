@@ -1,5 +1,5 @@
 ---
-title: "Clerk + Convex + Expo"
+title: "Clerk integration with Convex in Expo"
 description: "Authentication Implementation Guide"
 pubDate: "Feb 13 2026"
 heroImage: "/clerkConvex.png"
