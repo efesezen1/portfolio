@@ -1,0 +1,80 @@
+---
+interface Props {
+  url: string;
+  title: string;
+  description: string;
+  image: string;
+}
+
+const { url, title, description, image } = Astro.props;
+const domain = new URL(url).hostname.replace("www.", "");
+---
+
+<a href={url} target="_blank" rel="noopener noreferrer" class="link-preview">
+  <img src={image} alt={title} class="link-preview-image" />
+  <div class="link-preview-content">
+    <span class="link-preview-title">{title}</span>
+    <span class="link-preview-description">{description}</span>
+    <span class="link-preview-domain">{domain}</span>
+  </div>
+</a>
+
+<style>
+  .link-preview {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border: 1px solid rgb(var(--gray-light));
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.2s ease;
+    margin: 1.5em 0;
+  }
+
+  .link-preview:hover {
+    box-shadow:
+      0 4px 12px rgba(var(--gray), 30%),
+      0 12px 32px rgba(var(--gray), 40%);
+  }
+
+  .link-preview-image {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .link-preview-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .link-preview-title {
+    font-weight: 700;
+    font-size: 1rem;
+    color: rgb(var(--black));
+  }
+
+  .link-preview-description {
+    font-size: 0.875rem;
+    color: rgb(var(--gray));
+  }
+
+  .link-preview-domain {
+    font-size: 0.75rem;
+    color: rgb(var(--gray));
+  }
+
+  @media (max-width: 720px) {
+    .link-preview-image {
+      width: 60px;
+      height: 60px;
+    }
+  }
+</style>
