@@ -1,11 +1,10 @@
 ---
+import { Image } from "astro:assets";
 import BaseLayout from "../layouts/BaseLayout.astro";
-
-const title = "My Astro Blog";
-const description = "The perfect starter for your perfect blog.";
+import { SITE_TITLE, SITE_DESCRIPTION } from "../consts";
 ---
 
-<BaseLayout title={title} description={description}>
+<BaseLayout title={SITE_TITLE} description={SITE_DESCRIPTION}>
   <div class="home-container">
     <div class="home-copy">
       <h1>Welcome.</h1>
@@ -18,7 +17,8 @@ const description = "The perfect starter for your perfect blog.";
 
     <div class="hero-image-container">
       <picture>
-        <img
+        <Image
+          loading="eager"
           class="hero-image"
           alt="cutiepie"
           src="/cutiepie.png"
