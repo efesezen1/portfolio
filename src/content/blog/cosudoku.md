@@ -5,88 +5,110 @@ pubDate: "Feb 08 2026"
 heroImage: "/blog-placeholder-cosudoku.png"
 ---
 
-# Developing Cosudoku: My Journey and Tech Stack
+# How I Built **cosudoku** – A Full-Stack Competitive Sudoku App
 
-In this post, I want to talk about the development process of **Cosudoku**, the tools I used, and some specific technical details I want to document for my future self.
+I just shipped **cosudoku**, a full-stack Sudoku app designed for both solo zen sessions and high-stakes competitive play. It features global matchmaking, private friend invites, and real-time move synchronization.
 
-## Why Cosudoku?
+The goal was to build something that feels snappy and reactive, whether you're solving a puzzle alone or racing against an opponent. Here is a look behind the scenes at how I built it.
 
-Sudoku entered my life about five months ago. Initially, I was playing on a popular mobile app. However, I quickly became frustrated with the monetization model: hints cost money, and if you dared to hit a winning streak of 4-5 games, you were hit with unavoidable ads. Removing ads required a subscription, and as a casual player, the constant interruptions were a dealbreaker.
+---
 
-![Screenshot of a standard Sudoku game or the distracting UI of mobile apps](/blog/sudoku/sudoku-ads.gif)
+## Architecture and Tech Stack
 
-Despite the annoying ads, I didn't want to stop playing. I found myself encouraging my friends to play too. We started trying to solve the same puzzles simultaneously while hanging out, which turned into a fun, informal competition.
+Building a real-time game requires a stack that minimizes latency. I chose **React Native** for the frontend to ensure a native feel on mobile, and **Convex** for the backend because its reactive nature is perfect for games.
 
-That was the "Aha!" moment: **Why not turn this into a dedicated competitive platform?**
+The frontend calls Convex server functions, which manage the database and sync state across clients instantly. Here’s the core stack:
 
-## The Vision
+- **React Native / Expo:** For a cross-platform mobile experience.
+- **Convex:** The backend-as-a-service handling the DB, real-time sync, and scheduling.
+- **Clerk:** Identity management and secure authentication.
+- **Sentry:** Error tracking and session replay to catch production bugs.
+- **sudoku-gen:** A lightweight library to generate valid Sudoku puzzles on the fly.
+- **i18next:** Localization support for 6 different languages.
 
-I wanted to create a Sudoku experience that felt more social and competitive. To achieve this, I needed a few core components:
+---
 
-1. **Puzzle Generator:** A robust way to create boards of varying difficulty.
-2. **Single Source of Truth (DB):** A database to keep track of game states.
-3. **Matchmaking/Queue:** A system to match players based on difficulty levels.
-4. **Authorization:** A simple yet secure way to handle user identities.
-5. **Real-time Synchronization:** This was the most critical part. The lobby and the game board needed to stay perfectly in sync across multiple clients.
+## The Core Logic: Multiplayer Game Flow
 
-![UI Screenshot of the Cosudoku Lobby or Matchmaking screen](/blog/sudoku/game-lobby.png)
+The heart of **cosudoku** is the real-time interaction between two players. Unlike a turn-based game, Sudoku is a race. Every valid move updates your board and score, which must be reflected on your opponent's screen immediately so they know exactly how far ahead (or behind) they are.
 
-## Choosing the Tech Stack: The Move to Convex
+Here is how the data flows from the moment two players look for a match to the final victory:
 
-In a typical position, one might look at REST for control and data flow. However, because real-time state is paramount for a competitive game, unidirectional data flow (like standard REST) isn't sufficient. You need **Websockets**.
+```text
+  Player 1                  Convex Backend                  Player 2
+  --------                  --------------                  --------
+      |                          |                             |
+      |-- findMatch() -------->>|                             |
+      |                          |-- add to queue              |
+      |                          |                             |
+      |                          |<<-------- findMatch() ------|
+      |                          |-- match found!              |
+      |                          |-- createMultiPlayerGame()   |
+      |                          |-- schedule startGame()      |
+      |                          |                             |
+      |<<-- game created -------|------->> game created ------>|
+      |                          |                             |
+      |   (3-second countdown)   |     (3-second countdown)    |
+      |                          |                             |
+      |-- move() ------------->>|                             |
+      |                          |-- validate & score          |
+      |<<-- updated board ------|------->> updated board ----->|
+      |                          |                             |
+      |                          |<<-------------- move() -----|
+      |                          |-- validate & score          |
+      |<<-- updated board ------|------->> updated board ----->|
+      |                          |                             |
+      |                          |  (repeat until solved)      |
+      |                          |                             |
+      |<<-- game complete ------|------->> game complete ----->|
+      |                          |-- archive to history        |
 
-Initially, I considered using Firebase/Supabase for real-time needs. But after seeing the "emerging tech" discussions by developers like _Theo (T3.gg)_ on YouTube, I decided to dive into **Convex**.
-
-### Why Convex?
-
-Let me explain why I fell in love with it. Convex is basically a "backend-as-a-service" that treats your database as code.
-
-Traditionally, if you want to change your DB schema, you go to a dashboard, write SQL, or run migrations. In Convex, there is no need to leave your editor. **Everything is abstracted as code.**
-
-### Defining the Schema
-
-When you initialize a project, your entire database structure is defined in a `schema.ts` file.
-
-Here is a snippet of how I defined the user structure. Notice how readable and type-safe the validation is:
-
-```js
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
-
-export default defineSchema({
-  users: defineTable({
-    externalId: v.string(), // ID from the auth provider
-    name: v.string(),
-    displayTag: v.string(),
-    status: v.union(v.literal("online"), v.literal("offline")),
-    image_url: v.string(),
-    has_custom_board: v.boolean(),
-  }).index("by_externalId", ["externalId"]),
-});
 ```
 
-![Image: Screenshot of the schema.ts file in the editor](/blog/sudoku/typesafe-table.png)
+---
 
-### Development Velocity
+## Social Play: Friend Invite Flow
 
-This approach changes everything. It means faster development cycles and no "context switching" between your frontend logic and your database dashboard.
+Playing against strangers is fun, but challenging a friend is better. I built a dedicated flow for invites that includes a search feature and a "Waiting Room." To prevent the database from filling up with "ghost" invites, I used Convex’s **Scheduler** to automatically expire requests after a few minutes.
 
-1. **Type Safety:** Everything from the server to the client is automatically typed.
-2. **Simplified Logic:** You don't need to worry about complex state management tools like Redux. Convex handles the reactivity.
-3. **Unified Routing:** Instead of wrestling with API routes, you simply write queries and mutations that feel like standard TypeScript functions.
+```text
+  Sender                    Convex Backend                  Receiver
+  ------                    --------------                  --------
+      |                          |                             |
+      |-- searchUsers() ------>>|                             |
+      |<<-- results ------------|                             |
+      |                          |                             |
+      |-- sendInvite() ------->>|                             |
+      |                          |-- insert game_invites       |
+      |                          |-- schedule removeInvite()   |
+      |                          |   (auto-expire timer)       |
+      |                          |                             |
+      |  (polls getInviteStatus) |  (sees in getPendingInvites)|
+      |                          |                             |
+      |                          |<<------- acceptInvite() ----|
+      |                          |-- create multiplayer game   |
+      |                          |-- schedule startGame()      |
+      |                          |                             |
+      |<<-- invite accepted ----|------->> redirect to game -->|
 
-For example, starting a solo game is as simple as calling a mutation from a React component:
-
-```js
-const createSoloGame = useMutation(api.games.createSoloGameForCurrentUser);
-
-// Inside your component:
-const handleStartGame = async () => {
-  const gameId = await createSoloGame({ difficulty: selectedDifficulty });
-  // Navigate to game...
-};
 ```
 
-Check how we call function based on file routing:
+---
 
-![Image: Screenshot of the useMutation hook and game creation logic](/public/blog/sudoku/route-based-typing.png)
+## Defining the Game Schema
+
+Using Convex’s `defineSchema`, I ensured the data was type-safe from the start. This is crucial when you're passing board states back and forth.
+
+| Table                   | Purpose                                              |
+| ----------------------- | ---------------------------------------------------- |
+| **`users`**             | Profiles linked via Clerk's `externalId`.            |
+| **`solo_games`**        | Active and archived solo game states.                |
+| **`multiplayer_games`** | Real-time state for 2-player competitive matches.    |
+| **`matchmaking_queue`** | A waiting room for players seeking random opponents. |
+| **`game_invites`**      | Tracks friend-to-friend game requests.               |
+
+---
+
+## Conclusion
+
+Building **cosudoku** was a masterclass in leveraging managed services. By combining React Native’s flexibility with Convex’s real-time power, I was able to build a competitive game environment that scales without managing complex WebSockets or custom server infrastructure.

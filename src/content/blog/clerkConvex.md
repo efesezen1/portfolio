@@ -1239,6 +1239,27 @@ export const useUserStatus = () => {
 
 ## 6. Auth Flow Diagrams
 
+### Authentication Flow
+
+```
+  Mobile App                    Clerk                     Convex Backend
+  ----------                    -----                     --------------
+      |                           |                            |
+      |-- sign in/sign up ----->>|                            |
+      |                           |-- fires webhook -------->>|
+      |                           |   (user.created)          |
+      |                           |                            |-- upsertFromClerk()
+      |                           |                            |   insert into users table
+      |                           |                            |
+      |<<-- JWT token ------------|                            |
+      |                           |                            |
+      |-- useQuery/useMutation (JWT attached automatically) ->>|
+      |                           |                            |-- ctx.auth.getUserIdentity()
+      |                           |                            |-- getUser() lookup by externalId
+      |                           |                            |
+      |<<-- real-time data -----------------------------------|
+```
+
 ### Sign-Up Flow
 
 ```
