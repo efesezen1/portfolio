@@ -7,9 +7,10 @@ import FormattedDate from "../components/FormattedDate.astro";
 import { fade } from "astro:transitions";
 import { Image } from "astro:assets";
 
-type Props = CollectionEntry<"blog">["data"];
+type Props = CollectionEntry<"blog">["data"] & { rawContent?: string };
 
-const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
+const { title, description, pubDate, updatedDate, heroImage, rawContent } =
+  Astro.props;
 ---
 
 <html lang="en">
@@ -53,6 +54,25 @@ const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
       .last-updated-on {
         font-style: italic;
       }
+      .copy-markdown-btn {
+        text-align: center;
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        margin: 0 0 0 auto;
+        padding: 0.6em 1.2em;
+        background: rgb(var(--gray-dark));
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.85em;
+        font-family: "Atkinson", sans-serif;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
+      .copy-markdown-btn:hover {
+        opacity: 0.8;
+      }
     </style>
   </head>
 
@@ -88,10 +108,71 @@ const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
             <h1>{title}</h1>
             <hr />
           </div>
+          {
+            rawContent && (
+              <button
+                id="copy-markdown-btn"
+                class="copy-markdown-btn"
+                data-raw-content={rawContent}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>Copy as Markdown</span>
+              </button>
+            )
+          }
           <slot />
         </div>
       </article>
     </main>
     <Footer />
+    <script>
+      const btn = document.getElementById("copy-markdown-btn");
+      if (btn) {
+        btn.addEventListener("click", async () => {
+          const raw = btn.getAttribute("data-raw-content") || "";
+          // Strip image lines: ![...](...) and standalone image URLs on their own line
+          const cleaned = raw
+            .replace(/!\[.*?\]\(.*?\)\n?/g, "")
+            .replace(/^import\s+.*$/gm, "")
+            .replace(/^\s*<LinkPreview[\s\S]*?\/>\s*$/gm, "")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+          try {
+            await navigator.clipboard.writeText(cleaned);
+            const span = btn.querySelector("span");
+            if (span) {
+              span.textContent = "Copied!";
+              setTimeout(() => (span.textContent = "Copy as Markdown"), 2000);
+            }
+          } catch {
+            // Fallback for older browsers
+            const textarea = document.createElement("textarea");
+            textarea.value = cleaned;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+            const span = btn.querySelector("span");
+            if (span) {
+              span.textContent = "Copied!";
+              setTimeout(() => (span.textContent = "Copy as Markdown"), 2000);
+            }
+          }
+        });
+      }
+    </script>
   </body>
 </html>
